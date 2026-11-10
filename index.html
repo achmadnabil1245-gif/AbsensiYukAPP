@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <title>AbsenYukk</title>
+  <meta charset="UTF-8">
+  <meta name="description" content="Website pelacak absensi apel pagi berbasis kode dan GPS">
+  <meta name="keywords" content="absensi, apel, sekolah, kode, GPS">
+  <meta name="author" content="Nabil">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- SDK Firebase (App + Firestore) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <style>
+
+    /* ===== Reset dasar ===== */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background-color: #eef1f6;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 24px 12px 90px;
+    }
+
+    /* ===== Wrapper utama (lebar mirip layar HP) ===== */
+    .app {
+      width: 100%;
+      max-width: 380px;
+    }
+
+    /* ===== Header atas ===== */
+    .topbar {
+      background-color: #1b2340;
+      color: white;
+      border-radius: 16px 16px 0 0;
+      padding: 18px 20px;
+    }
+
+    .topbar .eyebrow {
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #9aa4c4;
+      margin-bottom: 4px;
+    }
+
+    .topbar h1 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    /* ===== Kartu utama ===== */
+    .card {
+      background-color: white;
+      border-radius: 0 0 16px 16px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+      padding: 20px;
+    }
+
+    /* ===== Form (nama & kode) ===== */
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 6px;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #d8dce4;
+      border-radius: 10px;
+      font-size: 15px;
+      color: #1b2340;
+    }
+
+    .field input:focus {
+      outline: none;
+      border-color: #3a63f0;
+    }
+
+    /* Input kode 6 angka: besar & di tengah */
+    .field input.kode-input {
+      text-align: center;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 8px;
+      padding-left: 22px;
+    }
+
+    .field .hint {
+      font-size: 12px;
+      color: #8891a8;
+      margin-top: 6px;
+    }
+
+    /* ===== Tombol absen ===== */
+    .btn {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 10px;
+      background-color: #3a63f0;
+      color: white;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 16px;
+    }
+
+    .btn:disabled {
+      background-color: #b7c3ee;
+      cursor: not-allowed;
+    }
+
+    /* ===== Kotak status (GPS, jam) ===== */
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+
+    .status .icon {
+      font-size: 18px;
+    }
+
+    .status .title {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .status.info {
+      background-color: #eef1f6;
+      color: #4a5578;
+    }
+
+    .status.ok {
+      background-color: #e5f6ec;
+      color: #1f7a44;
+    }
+
+    .status.warn {
+      background-color: #fdf3e0;
+      color: #a06a0a;
+    }
+
+    .status.bad {
+      background-color: #fbe9e9;
+      color: #b13a3a;
+    }
+
+    /* ===== Hasil akhir ===== */
+    .hasil {
+      text-align: center;
+      padding: 16px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+
+    .hasil.netral {
+      background-color: #e4e7ee;
+      color: #555f78;
+    }
+
+    .hasil.hadir {
+      background-color: #2fae5f;
+      color: white;
+    }
+
+    .hasil.telat {
+      background-color: #e0a51a;
+      color: white;
+    }
+
+    .hasil.ditolak {
+      background-color: #d64545;
+      color: white;
+    }
+
+    /* ===== Bottom navigation ===== */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      display: flex;
+      justify-content: space-around;
+      padding: 10px 0 14px;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.06);
+    }
+
+    .bottom-nav .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 11px;
+      color: #8891a8;
+    }
+
+    .bottom-nav .nav-item.active {
+      color: #1b2340;
+      font-weight: 600;
+    }
+
+    .bottom-nav .nav-item .icon {
+      font-size: 20px;
+      margin-bottom: 2px;
+    }
+
+  </style>
+</head>
+
+<body>
+
+  <div class="app">
+
+    <!-- ===== Header ===== -->
+    <div class="topbar">
+      <div class="eyebrow">Apel Pagi &middot; SMK</div>
+      <h1>Absensi Apel</h1>
+    </div>
+
+    <!-- ===== Kartu utama ===== -->
+    <div class="card">
+
+      <!-- Form nama -->
+      <div class="field">
+        <label for="nama">Nama Siswa</label>
+        <input type="text" id="nama" placeholder="Tulis nama kamu di sini" autocomplete="name">
+      </div>
+
+      <!-- Form kode 6 angka -->
+      <div class="field">
+        <label for="kode">Kode Absen</label>
+        <input type="text" id="kode" class="kode-input" inputmode="numeric"
+               autocomplete="off" placeholder="000000">
+        <div class="hint">Lihat kode 6 angka di layar lapangan</div>
+      </div>
+
+      <!-- Tombol absen -->
+      <button class="btn" id="btnAbsen">Absen Sekarang</button>
+
+      <!-- Status GPS -->
+      <div class="status info" id="gpsStatus">
+        <div class="icon">&#128205;</div>
+        <div>
+          <div class="title">Lokasi belum dicek</div>
+          <div>Menunggu kamu menekan tombol absen</div>
+        </div>
+      </div>
+
+      <!-- Status jam -->
+      <div class="status info" id="jamStatus">
+        <div class="icon">&#128337;</div>
+        <div>
+          <div class="title">Waktu belum dicek</div>
+          <div>Menunggu kamu menekan tombol absen</div>
+        </div>
+      </div>
+
+      <!-- Hasil akhir -->
+      <div class="hasil netral" id="hasilAbsen">
+        Status: Menunggu absen
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ===== Bottom navigation (opsional, tampilan doang) ===== -->
+  <div class="bottom-nav">
+    <div class="nav-item active">
+      <div class="icon">&#9673;</div>
+      <div>Absen</div>
+    </div>
+    <div class="nav-item">
+      <div class="icon">&#128203;</div>
+      <div>Riwayat</div>
+    </div>
+    <div class="nav-item">
+      <div class="icon">&#128100;</div>
+      <div>Profil</div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       JAVASCRIPT — di sinilah semua "otak" aplikasi ditulis.
+       ========================================================= -->
+  <script>
+
+    /* =========================================================
+       BAGIAN 1: KONFIGURASI
+       Ganti angka/nilai di sini sesuai kebutuhan sekolah kamu.
+       ========================================================= */
+
+    // Koordinat titik tengah lapangan sekolah (ambil dari Google Maps)
+    const KOORDINAT_LAPANGAN = {
+      lat: -6.045817,   // 6°02'44.94"S
+      lon: 106.052153   // 106°03'07.75"E
+    };
+
+    // Radius toleransi lokasi (meter). GPS HP biasanya meleset 10-30m,
+    // jadi jangan diisi terlalu kecil.
+    const RADIUS_TOLERANSI_METER = 50;
+
+    // Batas jam dianggap "Hadir". Lewat dari ini otomatis "Telat".
+    const BATAS_JAM = { jam: 7, menit: 0 };
+
+    // Toleransi selisih jam antar perangkat saat cek kadaluarsa kode (ms)
+    const TOLERANSI_JAM_MS = 5000;
+
+    // Config Firebase kamu (dari Firebase Console -> Project Settings)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBCB2WWCL-iyy6v87JFSSN7QmnRNymiOoY",
+      authDomain: "absensiyukk.firebaseapp.com",
+      projectId: "absensiyukk",
+      storageBucket: "absensiyukk.firebasestorage.app",
+      messagingSenderId: "543728960246",
+      appId: "1:543728960246:web:a9f07fae0fe738d0cea2d7",
+      measurementId: "G-X34TL4P82S"
+    };
+
+    // Pesan kalau kode ditolak server
+    const PESAN_KODE = {
+      KODE_TIDAK_AKTIF: "Ditolak — kode belum aktif. Minta guru membuka halaman kode",
+      KODE_SALAH: "Ditolak — kode salah atau sudah berganti, cek kode terbaru di layar",
+      KODE_KADALUARSA: "Ditolak — kode kadaluarsa, tunggu kode baru muncul",
+      KODE_DIPAKAI: "Ditolak — kode sudah dipakai siswa lain, tunggu kode baru",
+      SUDAH_ABSEN: "Kamu sudah tercatat absen hari ini"
+    };
+
+
+    /* =========================================================
+       BAGIAN 2: INISIALISASI FIREBASE
+       ========================================================= */
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+
+    /* =========================================================
+       BAGIAN 3: FUNGSI BANTUAN — hitung jarak antar 2 koordinat
+       (Rumus Haversine, hasilnya dalam meter)
+       ========================================================= */
+    function hitungJarak(lat1, lon1, lat2, lon2) {
+      const R = 6371000; // radius bumi dalam meter
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+
+    /* =========================================================
+       BAGIAN 4: FUNGSI BANTUAN — tampilan & format
+       ========================================================= */
+    const IKON = {
+      gpsStatus: "&#128205;",
+      jamStatus: "&#128337;"
+    };
+
+    function updateStatus(elId, jenis, judul, keterangan) {
+      const el = document.getElementById(elId);
+      el.className = "status " + jenis;
+      el.innerHTML =
+        '<div class="icon">' + (IKON[elId] || "&#9679;") + '</div><div>' +
+        '<div class="title">' + judul + '</div>' +
+        '<div>' + keterangan + '</div></div>';
+    }
+
+    function updateHasil(jenis, teks) {
+      const el = document.getElementById("hasilAbsen");
+      el.className = "hasil " + jenis;
+      el.innerText = teks;
+    }
+
+    function pad(n) {
+      return n.toString().padStart(2, "0");
+    }
+
+    // "Budi Santoso" -> "budi-santoso" (dipakai buat ID dokumen absen)
+    function buatSlug(nama) {
+      return nama.toLowerCase()
+        .normalize("NFD").replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60);
+    }
+
+    function tanggalHariIni(d) {
+      return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+    }
+
+
+    /* =========================================================
+       BAGIAN 5: SIMPAN ABSEN + VALIDASI KODE
+       Dilakukan dalam SATU transaksi Firestore, jadi pengecekan
+       kode dan penyimpanan absen terjadi bersamaan & aman.
+       ID dokumen = tanggal + nama, jadi 1 siswa cuma bisa
+       tercatat 1x per hari.
+       ========================================================= */
+    function simpanAbsen(kodeInput, idAbsen, dataAbsen) {
+      const kodeRef = db.collection("kode_absen").doc("aktif");
+      const absenRef = db.collection("absensi_apel").doc(idAbsen);
+
+      return db.runTransaction(async (tx) => {
+        const kodeSnap = await tx.get(kodeRef);
+        const absenSnap = await tx.get(absenRef);
+
+        if (!kodeSnap.exists) throw new Error("KODE_TIDAK_AKTIF");
+        const k = kodeSnap.data();
+        const sekarang = Date.now();
+
+        const cocokSekarang = k.kode === kodeInput;
+        const cocokLama = !!k.kode_lama && k.kode_lama === kodeInput &&
+                          sekarang <= k.kode_lama_sampai;
+
+        if (!cocokSekarang && !cocokLama) throw new Error("KODE_SALAH");
+
+        if (cocokSekarang) {
+          if (sekarang > k.kadaluarsa + TOLERANSI_JAM_MS) throw new Error("KODE_KADALUARSA");
+          if (k.sekali_pakai && k.dipakai) throw new Error("KODE_DIPAKAI");
+        }
+
+        if (absenSnap.exists) throw new Error("SUDAH_ABSEN");
+
+        // Mode sekali pakai: tandai kode terpakai -> kode.html ganti kode baru
+        if (cocokSekarang && k.sekali_pakai) {
+          tx.update(kodeRef, { dipakai: true, dipakai_oleh: dataAbsen.nama });
+        }
+
+        tx.set(absenRef, dataAbsen);
+      });
+    }
+
+
+    /* =========================================================
+       BAGIAN 6: PROSES UTAMA — dijalankan saat tombol ditekan
+       Urutan: cek input -> cek lokasi -> cek jam -> validasi
+       kode & simpan.
+       ========================================================= */
+    const namaEl = document.getElementById("nama");
+    const kodeEl = document.getElementById("kode");
+    const btnAbsen = document.getElementById("btnAbsen");
+    let sedangProses = false;
+
+    function selesai() {
+      sedangProses = false;
+      btnAbsen.disabled = false;
+      btnAbsen.textContent = "Absen Sekarang";
+    }
+
+    function kirimAbsen() {
+      if (sedangProses) return;
+
+      const nama = namaEl.value.trim();
+      const kode = kodeEl.value.replace(/\D/g, "");
+
+      if (!nama) {
+        updateHasil("ditolak", "Isi nama dulu sebelum absen!");
+        namaEl.focus();
+        return;
+      }
+      const slug = buatSlug(nama);
+      if (!slug) {
+        updateHasil("ditolak", "Nama harus berisi huruf atau angka");
+        namaEl.focus();
+        return;
+      }
+      if (kode.length !== 6) {
+        updateHasil("ditolak", "Kode harus 6 angka");
+        kodeEl.focus();
+        return;
+      }
+
+      sedangProses = true;
+      btnAbsen.disabled = true;
+      btnAbsen.textContent = "Memproses...";
+      updateHasil("netral", "Status: Memproses absen...");
+      updateStatus("gpsStatus", "info", "Mengecek lokasi...", "Mohon tunggu sebentar");
+      updateStatus("jamStatus", "info", "Waktu belum dicek", "Menunggu pengecekan lokasi");
+
+      if (!navigator.geolocation) {
+        updateStatus("gpsStatus", "bad", "GPS tidak didukung", "Perangkat ini tidak punya GPS");
+        updateHasil("ditolak", "Ditolak — GPS tidak tersedia");
+        selesai();
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (posisi) => {
+          const lat = posisi.coords.latitude;
+          const lon = posisi.coords.longitude;
+          const jarak = hitungJarak(lat, lon, KOORDINAT_LAPANGAN.lat, KOORDINAT_LAPANGAN.lon);
+
+          // ===== Cek jarak ke lapangan =====
+          if (jarak > RADIUS_TOLERANSI_METER) {
+            updateStatus("gpsStatus", "bad", "Di luar radius lapangan",
+              "Jarak sekitar " + Math.round(jarak) + " meter");
+            updateHasil("ditolak", "Ditolak — kamu tidak terdeteksi di lapangan");
+            selesai();
+            return;
+          }
+
+          updateStatus("gpsStatus", "ok", "Lokasi terverifikasi",
+            Math.round(jarak) + " m dari titik lapangan");
+
+          // ===== Cek jam sekarang vs batas jam hadir =====
+          const sekarang = new Date();
+          const batas = new Date();
+          batas.setHours(BATAS_JAM.jam, BATAS_JAM.menit, 0, 0);
+
+          const jamText = pad(sekarang.getHours()) + ":" + pad(sekarang.getMinutes());
+          const batasText = pad(BATAS_JAM.jam) + ":" + pad(BATAS_JAM.menit);
+
+          let status;
+          if (sekarang > batas) {
+            updateStatus("jamStatus", "warn", jamText, "Sudah lewat batas " + batasText);
+            status = "Telat";
+          } else {
+            updateStatus("jamStatus", "ok", jamText, "Sebelum batas " + batasText);
+            status = "Hadir";
+          }
+
+          // ===== Validasi kode + simpan ke Firestore =====
+          updateHasil("netral", "Menyimpan absen...");
+
+          const tanggal = tanggalHariIni(sekarang);
+
+          simpanAbsen(kode, tanggal + "_" + slug, {
+            nama: nama,
+            tanggal: tanggal,
+            waktu: sekarang.toISOString(),
+            waktu_server: firebase.firestore.FieldValue.serverTimestamp(),
+            lat: lat,
+            lon: lon,
+            jarak_meter: Math.round(jarak),
+            status: status,
+            kode: kode
+          }).then(() => {
+            if (status === "Telat") {
+              updateHasil("telat", "Telat tercatat — lokasi valid, tapi lewat jam");
+            } else {
+              updateHasil("hadir", "Hadir tercatat — lokasi & waktu valid");
+            }
+          }).catch((err) => {
+            if (PESAN_KODE[err.message]) {
+              updateHasil("ditolak", PESAN_KODE[err.message]);
+            } else {
+              console.error("Gagal simpan ke Firestore:", err);
+              updateHasil("ditolak", "Gagal menyimpan — cek koneksi internet");
+            }
+          }).finally(selesai);
+        },
+        (error) => {
+          updateStatus("gpsStatus", "bad", "Gagal ambil lokasi", error.message);
+          updateHasil("ditolak", "Ditolak — lokasi tidak bisa dicek");
+          selesai();
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+
+    /* =========================================================
+       BAGIAN 7: EVENT — tombol, Enter, dan rapikan input kode
+       ========================================================= */
+    btnAbsen.addEventListener("click", kirimAbsen);
+
+    // Input kode: cuma angka, maksimal 6 digit (paste "482 913" juga beres)
+    kodeEl.addEventListener("input", function () {
+      this.value = this.value.replace(/\D/g, "").slice(0, 6);
+    });
+
+    kodeEl.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") kirimAbsen();
+    });
+
+  </script>
+
+</body>
+</html>
