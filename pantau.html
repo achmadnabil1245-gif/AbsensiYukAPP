@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <title>Pantau Lokasi KM</title>
+  <meta charset="UTF-8">
+  <meta name="description" content="Halaman KM untuk memantau lokasi siswa saat apel pagi">
+  <meta name="robots" content="noindex">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- SDK Firebase (App + Firestore) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background-color: #eef1f6;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 24px 12px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 520px;
+    }
+
+    /* ===== Header ===== */
+    .topbar {
+      background-color: #1b2340;
+      color: white;
+      border-radius: 16px 16px 0 0;
+      padding: 18px 20px;
+    }
+
+    .topbar .eyebrow {
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #9aa4c4;
+      margin-bottom: 4px;
+    }
+
+    .topbar h1 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .koneksi {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #9aa4c4;
+    }
+
+    .titik {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #8891a8;
+    }
+
+    .titik.on { background-color: #2fae5f; }
+    .titik.off { background-color: #d64545; }
+
+    /* ===== Kartu ===== */
+    .card {
+      background-color: white;
+      border-radius: 0 0 16px 16px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+      padding: 16px;
+    }
+
+    /* ===== Ringkasan ===== */
+    .ringkas {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .chip {
+      border-radius: 10px;
+      padding: 10px 6px;
+      text-align: center;
+    }
+
+    .chip .angka {
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .chip .label {
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .chip.dalam { background-color: #e5f6ec; color: #1f7a44; }
+    .chip.luar  { background-color: #fbe9e9; color: #b13a3a; }
+    .chip.mati  { background-color: #eef1f6; color: #4a5578; }
+
+    /* ===== Filter kelas ===== */
+    .filter {
+      margin-bottom: 8px;
+    }
+
+    .filter label {
+      display: block;
+      font-size: 12px;
+      color: #555;
+      margin-bottom: 4px;
+    }
+
+    .filter select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d8dce4;
+      border-radius: 10px;
+      font-size: 14px;
+      color: #1b2340;
+      background-color: white;
+    }
+
+    /* ===== Daftar siswa ===== */
+    .baris {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-top: 1px solid #eef1f6;
+    }
+
+    .no {
+      flex: 0 0 34px;
+      height: 34px;
+      border-radius: 50%;
+      background-color: #eef1f6;
+      color: #1b2340;
+      font-weight: 700;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .nama {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1b2340;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sub {
+      font-size: 12px;
+      color: #8891a8;
+      margin-top: 2px;
+    }
+
+    .kanan {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .lencana {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 9px;
+      border-radius: 99px;
+      white-space: nowrap;
+    }
+
+    .lencana.dalam { background-color: #e5f6ec; color: #1f7a44; }
+    .lencana.luar  { background-color: #fbe9e9; color: #b13a3a; }
+    .lencana.mati  { background-color: #e4e7ee; color: #555f78; }
+
+    .absen {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 99px;
+    }
+
+    .absen.hadir { background-color: #2fae5f; color: white; }
+    .absen.telat { background-color: #e0a51a; color: white; }
+    .absen.ta    { background-color: #d64545; color: white; }
+    .absen.belum { background-color: #e4e7ee; color: #555f78; }
+
+    .kosong {
+      text-align: center;
+      padding: 28px 8px;
+      font-size: 13px;
+      color: #8891a8;
+    }
+
+    .catatan {
+      font-size: 12px;
+      color: #8891a8;
+      line-height: 1.5;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="app">
+
+    <div class="topbar">
+      <div class="eyebrow">Apel Pagi &middot; SMK</div>
+      <h1>Pantau Lokasi Siswa</h1>
+      <div class="koneksi">
+        <span class="titik" id="titik"></span>
+        <span id="koneksiTeks">Menghubungkan...</span>
+      </div>
+    </div>
+
+    <div class="card">
+
+      <div class="ringkas">
+        <div class="chip dalam"><div class="angka" id="jmlDalam">0</div><div class="label">Dalam lokasi</div></div>
+        <div class="chip luar"><div class="angka" id="jmlLuar">0</div><div class="label">Di luar lokasi</div></div>
+        <div class="chip mati"><div class="angka" id="jmlMati">0</div><div class="label">Tidak aktif</div></div>
+      </div>
+
+      <div class="filter">
+        <label for="filterKelas">Tampilkan kelas</label>
+        <select id="filterKelas">
+          <option value="">Semua kelas</option>
+        </select>
+      </div>
+
+      <div id="daftar"></div>
+
+      <div class="catatan" id="catatan"></div>
+
+    </div>
+
+  </div>
+
+  <script>
+
+    /* =========================================================
+       KONFIGURASI
+       ========================================================= */
+
+    // Batas jam hadir — HARUS sama dengan BATAS_JAM di index.html.
+    // Dipakai untuk menandai "TA" bagi siswa yang belum absen setelah lewat jam ini.
+    const BATAS_JAM = { jam: 7, menit: 5 };
+
+    // Siswa dianggap "Tidak aktif" kalau tidak ada update lokasi selama sekian detik
+    // (halaman siswa ditutup, layar mati, atau GPS dimatikan).
+    // Harus lebih besar dari INTERVAL_PANTAU_DETIK di index.html (10 detik).
+    const TIDAK_AKTIF_DETIK = 45;
+
+    // Config Firebase — HARUS sama persis dengan yang di index.html
+    const firebaseConfig = {
+      apiKey: "AIzaSyBCB2WWCL-iyy6v87JFSSN7QmnRNymiOoY",
+      authDomain: "absensiyukk.firebaseapp.com",
+      projectId: "absensiyukk",
+      storageBucket: "absensiyukk.firebasestorage.app",
+      messagingSenderId: "543728960246",
+      appId: "1:543728960246:web:a9f07fae0fe738d0cea2d7",
+      measurementId: "G-X34TL4P82S"
+    };
+
+
+    /* =========================================================
+       INISIALISASI FIREBASE
+       ========================================================= */
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+
+    /* =========================================================
+       FUNGSI BANTUAN
+       ========================================================= */
+    const daftarEl = document.getElementById("daftar");
+    const filterEl = document.getElementById("filterKelas");
+
+    let data = [];          // semua siswa hari ini (diisi dari Firestore)
+    let filterKelas = "";   // kelas yang sedang dipilih ("" = semua)
+    let kunciKelas = "";    // buat tahu kapan daftar kelas di dropdown perlu dibangun ulang
+
+    function pad(n) {
+      return n.toString().padStart(2, "0");
+    }
+
+    function tanggalHariIni(d) {
+      return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+    }
+
+    // Semua teks dari siswa dipasang lewat textContent (bukan innerHTML),
+    // jadi nama seperti "<script>" tampil apa adanya dan tidak dijalankan.
+    function buat(tag, kelas, teks) {
+      const e = document.createElement(tag);
+      if (kelas) e.className = kelas;
+      if (teks !== undefined) e.textContent = teks;
+      return e;
+    }
+
+    function formatUmur(detik) {
+      if (!isFinite(detik)) return "belum ada data";
+      if (detik < 60) return Math.max(0, Math.round(detik)) + " dtk lalu";
+      if (detik < 3600) return Math.floor(detik / 60) + " mnt lalu";
+      return Math.floor(detik / 3600) + " jam lalu";
+    }
+
+    function setKoneksi(ok, teks) {
+      document.getElementById("titik").className = "titik " + (ok ? "on" : "off");
+      document.getElementById("koneksiTeks").textContent = teks;
+    }
+
+    // Bangun ulang pilihan kelas hanya kalau daftarnya berubah
+    // (biar dropdown yang lagi dibuka gak ke-reset tiap update).
+    function isiFilter(daftarKelas) {
+      const kunci = daftarKelas.join("|");
+      if (kunci === kunciKelas) return;
+      kunciKelas = kunci;
+
+      filterEl.textContent = "";
+      const semua = buat("option", "", "Semua kelas");
+      semua.value = "";
+      filterEl.appendChild(semua);
+      daftarKelas.forEach((k) => {
+        const o = buat("option", "", k);
+        o.value = k;
+        filterEl.appendChild(o);
+      });
+
+      if (filterKelas && !daftarKelas.includes(filterKelas)) filterKelas = "";
+      filterEl.value = filterKelas;
+    }
+
+
+    /* =========================================================
+       TAMPILKAN DAFTAR
+       ========================================================= */
+    function render() {
+      const sekarang = Date.now();
+      const batas = new Date();
+      batas.setHours(BATAS_JAM.jam, BATAS_JAM.menit, 0, 0);
+      const lewatBatas = sekarang > batas.getTime();
+
+      const daftarKelas = [...new Set(data.map((d) => d.kelas))]
+        .sort((a, b) => a.localeCompare(b, "id", { numeric: true }));
+      isiFilter(daftarKelas);
+
+      const tampil = data
+        .filter((d) => !filterKelas || d.kelas === filterKelas)
+        .sort((a, b) =>
+          a.kelas.localeCompare(b.kelas, "id", { numeric: true }) || a.no_absen - b.no_absen);
+
+      let dalam = 0, luar = 0, mati = 0;
+      daftarEl.textContent = "";
+
+      tampil.forEach((d) => {
+        const umur = d.diperbarui ? (sekarang - d.diperbarui) / 1000 : Infinity;
+        const aktif = umur <= TIDAK_AKTIF_DETIK;
+
+        let jenis, teksLokasi, sub;
+        if (!aktif) {
+          mati++;
+          jenis = "mati";
+          teksLokasi = "Tidak aktif";
+          sub = d.kelas + " · terakhir " + (d.dalam_lokasi ? "dalam" : "di luar") +
+                " lokasi · " + formatUmur(umur);
+        } else if (d.dalam_lokasi) {
+          dalam++;
+          jenis = "dalam";
+          teksLokasi = "Dalam lokasi";
+          sub = d.kelas + " · " + d.jarak + " m · " + formatUmur(umur);
+        } else {
+          luar++;
+          jenis = "luar";
+          teksLokasi = "Di luar lokasi";
+          sub = d.kelas + " · " + d.jarak + " m · " + formatUmur(umur);
+        }
+
+        let teksAbsen, jenisAbsen;
+        if (d.absen === "Hadir") { teksAbsen = "Hadir"; jenisAbsen = "hadir"; }
+        else if (d.absen === "Telat") { teksAbsen = "Telat"; jenisAbsen = "telat"; }
+        else if (lewatBatas) { teksAbsen = "TA"; jenisAbsen = "ta"; }
+        else { teksAbsen = "Belum absen"; jenisAbsen = "belum"; }
+
+        const baris = buat("div", "baris");
+        baris.appendChild(buat("div", "no", String(d.no_absen)));
+
+        const info = buat("div", "info");
+        info.appendChild(buat("div", "nama", d.nama));
+        info.appendChild(buat("div", "sub", sub));
+        baris.appendChild(info);
+
+        const kanan = buat("div", "kanan");
+        kanan.appendChild(buat("span", "lencana " + jenis, teksLokasi));
+        kanan.appendChild(buat("span", "absen " + jenisAbsen, teksAbsen));
+        baris.appendChild(kanan);
+
+        daftarEl.appendChild(baris);
+      });
+
+      if (tampil.length === 0) {
+        daftarEl.appendChild(buat("div", "kosong", data.length === 0
+          ? "Belum ada siswa yang menekan Absen hari ini."
+          : "Tidak ada siswa di kelas ini."));
+      }
+
+      document.getElementById("jmlDalam").textContent = dalam;
+      document.getElementById("jmlLuar").textContent = luar;
+      document.getElementById("jmlMati").textContent = mati;
+    }
+
+    filterEl.addEventListener("change", function () {
+      filterKelas = this.value;
+      render();
+    });
+
+    document.getElementById("catatan").textContent =
+      "Daftar hanya berisi siswa yang sudah menekan Absen Sekarang hari ini. " +
+      "\"Tidak aktif\" berarti tidak ada update lokasi lebih dari " + TIDAK_AKTIF_DETIK +
+      " detik (halaman siswa ditutup, layar mati, atau GPS dimatikan). " +
+      "Siswa yang belum absen setelah " + pad(BATAS_JAM.jam) + ":" + pad(BATAS_JAM.menit) +
+      " ditandai TA.";
+
+
+    /* =========================================================
+       PANTAU FIRESTORE — daftar berubah sendiri tiap ada update
+       ========================================================= */
+    db.collection("pantau")
+      .where("tanggal", "==", tanggalHariIni(new Date()))
+      .onSnapshot((snap) => {
+        data = snap.docs.map((doc) => {
+          const d = doc.data({ serverTimestamps: "estimate" });
+          return {
+            id: doc.id,
+            nama: String(d.nama || ""),
+            kelas: String(d.kelas || ""),
+            no_absen: Number(d.no_absen) || 0,
+            dalam_lokasi: !!d.dalam_lokasi,
+            jarak: Number(d.jarak_meter) || 0,
+            diperbarui: d.diperbarui && d.diperbarui.toMillis ? d.diperbarui.toMillis() : 0,
+            absen: d.absen || null
+          };
+        });
+        setKoneksi(true, "Terhubung · diperbarui otomatis");
+        render();
+      }, (err) => {
+        console.error("Listener error:", err);
+        setKoneksi(false, "Terputus — cek koneksi atau Firestore Rules");
+      });
+
+    // Segarkan tampilan tiap 5 detik biar "x dtk lalu" dan status "Tidak aktif" tetap akurat
+    setInterval(render, 5000);
+
+    render();
+
+  </script>
+
+</body>
+</html>
